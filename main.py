@@ -208,7 +208,8 @@ def draw_max_width_box(image, mask):
         text = f"Width: {width}"
         cv2.putText(image, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
     
-    return image
+     # 画像と最大幅を返す
+    return image, max_width
 
 # この関数を使用して楕円を検出し、結果を使用するコード...
 
@@ -304,7 +305,7 @@ def main():
     result_image_corrected = I_trimmed.copy()
 
     # 校正された距離を保存するリスト
-    corrected_distances = []
+    distances_data = []
 
     # 楕円ごとに距離の校正を行う
     for ellipse_data in ellipses_data:
@@ -341,7 +342,12 @@ def main():
             corrected_distance = min_distance  # 最大楕円の場合は校正不要
 
         # 校正された距離をリストに追加
-        corrected_distances.append(corrected_distance)
+        distances_data.append({
+          'ピクセル（校正前）': min_distance,
+          'mm（校正前）': None,  # まだ計算しない
+          'ピクセル（校正後）': corrected_distance,
+          'mm（校正後）': None,  # まだ計算しない
+        })
         print('最短距離（校正後）：' + str(corrected_distance))
 
         # 中心からエッジへの線を描画
@@ -362,6 +368,34 @@ def main():
     # 結果の表示
     st.image(result_image, caption='円の中心からエッジへの最短距離（校正前）', use_column_width=True)
     st.image(result_image_corrected, caption='円の中心からエッジへの最短距離（校正後）', use_column_width=True)
+    
+
+    # ------------------------------------------------------
+    # 幅の計測
+    # ------------------------------------------------------
+    width_image = I_trimmed.copy()  # 描画用の画像をコピー
+    image_with_box, max_width_pixels = draw_max_width_box(width_image, filtered_mask)
+    st.image(image_with_box, caption='物体の最大幅', use_column_width=True)
+    
+    # ------------------------------------------------------
+    # 結果表示
+    # ------------------------------------------------------
+    # 1ピクセルあたりの実際の長さの計算
+    length = 157
+    pixel_length_mm = length / max_width_pixels  # 実際の幅は157mm
+    st.write(f"物体の最大幅（手動で計測した値）:　{length} mm")
+    st.write(f"1ピクセルあたりの長さ（{length} / {max_width_pixels}）:　{pixel_length_mm:.4f} mm")
+    
+    # 中心からエッジへの実際の長さの計算
+    for data in distances_data:
+        data['mm（校正前）'] = data['ピクセル（校正前）'] * pixel_length_mm
+        data['mm（校正後）'] = data['ピクセル（校正後）'] * pixel_length_mm
+
+    # データをDataFrameに変換して表示
+    distances_df = pd.DataFrame(distances_data)
+    
+    st.write("中心からエッジへの最短距離")
+    st.dataframe(distances_df)
 
 if __name__ == "__main__":
     main()
